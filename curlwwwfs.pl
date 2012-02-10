@@ -1,0 +1,129 @@
+#!/usr/bin/perl -w
+# OneClickInstallUI http://i.opensu.se/devel:languages:perl/perl-Fuse
+
+use strict;
+use POSIX;
+use Fuse;
+use LWP::UserAgent;
+use Time::Local;
+my $mnt=shift || die "usage: $0 MNT\n";
+my $baseurl="http://localhost/~bernhard";
+my $ua=LWP::UserAgent->new(parse_head=>0, timeout=>9);
+$ua->agent("curlwwwfs");
+our %cache;
+our %month=qw(Jan 1 Feb 2 Mar 3 Apr 4 May 5 Jun 6 Jul 7 Aug 8 Sep 9 Oct 10 Nov 11 Dec 12);
+
+sub diag{}
+#sub diag{print @_} # debug
+
+sub path2url($)
+{
+	my $url="$baseurl$_[0]";
+}
+
+sub my_getdir($)
+{ my($f)=@_;
+	$f=~s{[^/]$}{$&/}; # add trailing slash
+	my $url=path2url($f);
+	diag "getdir: $url\n";
+	my $r = $ua->get($url);
+	if($r->code!=200) {
+		return -1*ENOENT;
+	}
+	my $c=$r->content;
+	my @ref;
+	foreach my $line ($c=~m/a href="([^"]+".*)/g) {
+		next unless $line=~m{^([^"]+)">[^<]+</a>\s+ (\d{2})-(\w{3})-(\d{4})\s+(\d{2}):(\d{2})\s+(\S+)};
+		my($ref,$day,$mon,$year,$hour,$min,$size)=($1,$2,$3,$4,$5,$6,$7);
+		my $d=($ref=~s{/$}{});
+		next unless $ref=~m/^[^?\/]+$/; # filter out dynamic links and upward links
+		my $path="$f$ref";
+		#diag "cache: $path,$day,$mon,$year,$hour,$min,$size\n";
+	   	$cache{$path}->{mtime}=timegm(0, $min, $hour, $day, $month{$mon}-1, $year);
+		$cache{$path}->{size}=$size if($size=~m/^\d+$/);
+	   	$cache{$path}->{dir}=$d;
+		push(@ref,$ref);
+	}
+	return (".","..",@ref,0);
+	#print $r->status_line, $r->content;
+#	return (".", "testab", "2", 0);
+}
+
+sub my_getattr($)
+{ my($f)=@_;
+    my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks)=(0,0);
+	my $isfile;
+	$cache{$f}||={};
+	my $c=$cache{$f};
+	$nlink=1;
+	$uid=$<;
+	($gid)=split / /,$(;
+	$size=0;
+	$rdev=0;
+	$atime=time;
+	$mtime=$atime;
+	if(!$c || !defined($c->{size})) { # need to get size from headers
+		my $url=path2url($f);
+		my $code=$c->{code};
+		my $r;
+		if(!$code) {
+			$r = $ua->head($url);
+			$c->{code}=$code=$r->code;
+			$c->{headers}=$r;
+			#diag("code: $code\n");
+		} else {$r=$c->{headers}}
+		if($code==403) {return -1*EPERM}
+		if($code==404) {return -1*ENOENT}
+		if($code>=400) {return -1*EIO}
+		$c->{size}=$r->header("Content-Length");
+		my $type=$r->header("Content-Type");
+		if(!defined($c->{size}) && $type=~m{text/html}) {$c->{dir}=1; }
+		my $lm=$r->header("Last-Modified");
+		if($lm && $lm=~m/(\d{2}) (\w{3}) (\d{4})\s+(\d{2}):(\d{2}):(\d{2})/) {
+	   		$c->{mtime}=timegm($6, $5, $4, $1, $month{$2}-1, $3);
+			print "mtime: $mtime\n";
+		}
+	}
+	if($c) {
+		$size=$c->{size};
+		$mtime=$c->{mtime}||time;
+		$isfile=1;
+		$mode=0100644; # file
+	   	if($c->{dir}) {
+			$mode=0040755; # dir
+			$isfile=0;
+		}
+	}
+	$size||=0;
+	$ctime=$mtime;
+	$blksize=512;
+	$blocks=int(($size+$blksize-1)/$blksize);
+	diag "$dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks\n";
+    return ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks);
+}
+
+sub my_read($)
+{ my($f, $size, $offs)=@_;
+	my $endoffs=$offs+$size-1;
+	my $url=path2url($f);
+	diag "read: $url $f, $size, $offs\n";
+	my $r = $ua->get($url, "Range"=>"bytes=$offs-$endoffs");
+	my $c=$r->content;
+	diag $r->status_line;
+	if($r->code==403) {return -1*EPERM}
+	if($r->code==404) {return -1*ENOENT}
+	if($r->code==416) {return ""}
+	if($r->code>=400) {return -1*EIO}
+	return $c;
+}
+
+#my $response = $ua->get("http://localhost/~bernhard/");
+#print $response->status_line, $response->content;
+#exit 0;
+Fuse::main(
+#	debug=>1,
+	mountpoint=>$mnt,
+	getdir=>\&my_getdir,
+	getattr=>\&my_getattr,
+	read=>\&my_read,
+);
