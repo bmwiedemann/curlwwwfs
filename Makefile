@@ -3,7 +3,7 @@ test:
 #dd if=/dev/zero of=/home/bernhard/public_html/testz bs=1M seek=10 count=1
 	mkdir -p mnt
 	perl -c curlwwwfs.pl
-	./curlwwwfs.pl mnt&
+	./curlwwwfs.pl http://localhost/~bernhard mnt&
 	sleep 2
 #	-ls -la .
 	-ls -la mnt

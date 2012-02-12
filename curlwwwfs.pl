@@ -7,8 +7,9 @@ use POSIX;
 use Fuse;
 use LWP::UserAgent;
 use Time::Local;
-my $mnt=shift || die "usage: $0 MNT\n";
-my $baseurl="http://localhost/~bernhard";
+sub usage() { die "usage: $0 URL MNT\n";}
+my $baseurl=shift || usage;
+my $mnt=shift || usage;
 my $ua=LWP::UserAgent->new(parse_head=>0, timeout=>9, keep_alive=>4);
 $ua->agent("curlwwwfs");
 our %cache;
@@ -21,15 +22,23 @@ sub path2url($)
 	my $url="$baseurl$_[0]";
 }
 
+# input HTTP result code (e.g. 404)
+# output: fuse return code - zero on success
+sub checkerror($)
+{ my($code)=shift;
+	if($code==403) {return -1*EACCES}
+	if($code==404) {return -1*ENOENT}
+	if($code>=400) {return -1*EIO}
+	return 0;
+}
+
 sub my_getdir($)
 { my($f)=@_;
 	$f=~s{[^/]$}{$&/}; # add trailing slash
 	my $url=path2url($f);
 	diag "getdir: $url\n";
 	my $r = $ua->get($url);
-	if($r->code!=200) {
-		return -1*ENOENT;
-	}
+	if(my $e=checkerror($r->code)) {return $e}
 	my $c=$r->content;
 	my @ref;
 	foreach my $line ($c=~m/a href="([^"]+".*)/g) {
@@ -45,8 +54,6 @@ sub my_getdir($)
 		push(@ref,$ref);
 	}
 	return (".","..",@ref,0);
-	#print $r->status_line, $r->content;
-#	return (".", "testab", "2", 0);
 }
 
 sub my_getattr($)
@@ -62,7 +69,7 @@ sub my_getattr($)
 	$rdev=0;
 	$atime=time;
 	$mtime=$atime;
-	if(!$c || !defined($c->{size})) { # need to get size from headers
+	if(!$c || !defined($c->{size})) { # need to get size from headers - e.g. when apache said 123M before but we need exact sizes for read to work
 		my $url=path2url($f);
 		my $code=$c->{code};
 		my $r;
@@ -72,16 +79,14 @@ sub my_getattr($)
 			$c->{headers}=$r;
 			#diag("code: $code\n");
 		} else {$r=$c->{headers}}
-		if($code==403) {return -1*EPERM}
-		if($code==404) {return -1*ENOENT}
-		if($code>=400) {return -1*EIO}
+		if(my $e=checkerror($r->code)) {return $e}
 		$c->{size}=$r->header("Content-Length");
 		my $type=$r->header("Content-Type");
 		if(!defined($c->{size}) && $type=~m{text/html}) {$c->{dir}=1; }
 		my $lm=$r->header("Last-Modified");
 		if($lm && $lm=~m/(\d{2}) (\w{3}) (\d{4})\s+(\d{2}):(\d{2}):(\d{2})/) {
 	   		$c->{mtime}=timegm($6, $5, $4, $1, $month{$2}-1, $3);
-			print "mtime: $mtime\n";
+			diag "mtime: $mtime\n";
 		}
 	}
 	if($c) {
@@ -110,10 +115,8 @@ sub my_read($)
 	my $r = $ua->get($url, "Range"=>"bytes=$offs-$endoffs");
 	my $c=$r->content;
 	diag $r->status_line;
-	if($r->code==403) {return -1*EPERM}
-	if($r->code==404) {return -1*ENOENT}
 	if($r->code==416) {return ""}
-	if($r->code>=400) {return -1*EIO}
+	if(my $e=checkerror($r->code)) {return $e}
 	return $c;
 }
 
