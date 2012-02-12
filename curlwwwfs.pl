@@ -51,6 +51,7 @@ sub my_getdir($)
 	   	$cache{$path}->{mtime}=timegm(0, $min, $hour, $day, $month{$mon}-1, $year);
 		$cache{$path}->{size}=$size if($size=~m/^\d+$/);
 	   	$cache{$path}->{dir}=$d;
+		if($d) {$cache{$path}->{size}=0}
 		push(@ref,$ref);
 	}
 	return (".","..",@ref,0);
