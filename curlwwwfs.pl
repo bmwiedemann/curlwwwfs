@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 # OneClickInstallUI http://i.opensu.se/devel:languages:perl/perl-Fuse
+my $debug=0;
 
 use strict;
 use POSIX;
@@ -8,13 +9,12 @@ use LWP::UserAgent;
 use Time::Local;
 my $mnt=shift || die "usage: $0 MNT\n";
 my $baseurl="http://localhost/~bernhard";
-my $ua=LWP::UserAgent->new(parse_head=>0, timeout=>9);
+my $ua=LWP::UserAgent->new(parse_head=>0, timeout=>9, keep_alive=>4);
 $ua->agent("curlwwwfs");
 our %cache;
 our %month=qw(Jan 1 Feb 2 Mar 3 Apr 4 May 5 Jun 6 Jul 7 Aug 8 Sep 9 Oct 10 Nov 11 Dec 12);
 
-sub diag{}
-#sub diag{print @_} # debug
+sub diag{return unless $debug; print @_} # debug
 
 sub path2url($)
 {
@@ -121,7 +121,7 @@ sub my_read($)
 #print $response->status_line, $response->content;
 #exit 0;
 Fuse::main(
-#	debug=>1,
+	debug=>$debug,
 	mountpoint=>$mnt,
 	getdir=>\&my_getdir,
 	getattr=>\&my_getattr,
