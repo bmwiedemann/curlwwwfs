@@ -111,9 +111,9 @@ sub my_getattr($)
 		$size=$c->{size};
 		$mtime=$c->{mtime}||time;
 		$isfile=1;
-		$mode=0100644; # file
+		$mode=0100444; # file
 	   	if($c->{dir}) {
-			$mode=0040755; # dir
+			$mode=0040555; # dir
 			$isfile=0;
 		}
 	}
