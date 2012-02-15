@@ -58,8 +58,8 @@ sub my_getdir($)
 	if(my $e=checkerror($r->code)) {return $e}
 	my $c=$r->content;
 	my @ref;
-	foreach my $line ($c=~m/a href="([^"]+".*)/g) {
-		next unless $line=~m{^([^"]+)">[^<]+</a>\s+ (\d{2})-(\w{3})-(\d{4})\s+(\d{2}):(\d{2})\s+(\S+)};
+	foreach my $line ($c=~m/<a href="([^"]+".*)/gi) {
+		next unless $line=~m{^([^"]+)">[^<]+</a>\s+ (\d{2})-(\w{3})-(\d{4})\s+(\d{2}):(\d{2})\s+(\S+)}i;
 		my($ref,$day,$mon,$year,$hour,$min,$size)=($1,$2,$3,$4,$5,$6,$7);
 		my $d=($ref=~s{/$}{});
 		next unless $ref=~m/^[^?\/]+$/; # filter out dynamic links and upward links
