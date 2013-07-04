@@ -28,7 +28,7 @@ sub usage() { die "usage: $0 URL MNT\n";}
 my $baseurl=shift || usage;
 my $mnt=shift || usage;
 my $ua=LWP::UserAgent->new(parse_head=>0, timeout=>9, keep_alive=>4);
-$ua->agent("curlwwwfs");
+$ua->agent("curlwwwfs/1.0.2");
 our %cache;
 our %month=qw(Jan 1 Feb 2 Mar 3 Apr 4 May 5 Jun 6 Jul 7 Aug 8 Sep 9 Oct 10 Nov 11 Dec 12);
 
