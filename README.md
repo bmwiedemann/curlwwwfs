@@ -2,7 +2,7 @@
 
 curlwwwfs requires the Fuse module, which you can get for openSUSE and SLE with
 
-    OneClickInstallUI http://aw.zq1.de/cgi-bin/public/multiymp/perl-Fuse?base=http://download.opensuse.org/repositories/devel:languages:perl/
+    OneClickInstallUI http://multiymp.zq1.de/devel:languages:perl/perl-Fuse
     # and additionally you need
     zypper -n in make perl-libwww-perl
     make install
